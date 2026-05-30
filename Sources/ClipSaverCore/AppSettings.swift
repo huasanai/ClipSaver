@@ -7,6 +7,8 @@ public enum AppSettingKey {
     public static let saveDirectoryPath = "saveDirectoryPath"
     public static let isMonitoringEnabled = "isMonitoringEnabled"
     public static let launchAtLogin = "launchAtLogin"
+    public static let fileNamingStrategy = "fileNamingStrategy"
+    public static let filenameFormat = "filenameFormat"
 }
 
 public enum AppDefaults {
@@ -30,7 +32,9 @@ public enum AppDefaults {
             AppSettingKey.saveFiles: true,
             AppSettingKey.saveDirectoryPath: saveDirectoryPath,
             AppSettingKey.isMonitoringEnabled: true,
-            AppSettingKey.launchAtLogin: false
+            AppSettingKey.launchAtLogin: false,
+            AppSettingKey.fileNamingStrategy: FileNamingStrategy.automatic.rawValue,
+            AppSettingKey.filenameFormat: "{type}_{timestamp}"
         ])
     }
 }

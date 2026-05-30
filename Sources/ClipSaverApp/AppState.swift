@@ -10,12 +10,15 @@ final class AppState: ObservableObject {
     @Published private(set) var saveFiles: Bool
     @Published private(set) var saveDirectoryPath: String
     @Published private(set) var launchAtLogin: Bool
+    @Published private(set) var fileNamingStrategy: FileNamingStrategy
+    @Published private(set) var filenameFormat: String
     @Published private(set) var lastStatusMessage = "Ready"
 
     private let defaults: UserDefaults
     private let saveQueue = DispatchQueue(label: "dev.huasan.clipsaver.save", qos: .utility)
     private var monitor: ClipboardMonitor?
     private var shortcutController: GlobalShortcutController?
+    private var isFilenamePromptActive = false
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -27,6 +30,10 @@ final class AppState: ObservableObject {
         saveFiles = defaults.bool(forKey: AppSettingKey.saveFiles)
         saveDirectoryPath = defaults.string(forKey: AppSettingKey.saveDirectoryPath) ?? AppDefaults.saveDirectoryPath
         launchAtLogin = LaunchAgentManager.shared.isEnabled
+        fileNamingStrategy = FileNamingStrategy(
+            rawValue: defaults.string(forKey: AppSettingKey.fileNamingStrategy) ?? ""
+        ) ?? .automatic
+        filenameFormat = defaults.string(forKey: AppSettingKey.filenameFormat) ?? "{type}_{timestamp}"
         defaults.set(launchAtLogin, forKey: AppSettingKey.launchAtLogin)
 
         monitor = ClipboardMonitor(
@@ -108,6 +115,18 @@ final class AppState: ObservableObject {
         lastStatusMessage = "Save folder updated"
     }
 
+    func setFileNamingStrategy(_ strategy: FileNamingStrategy) {
+        fileNamingStrategy = strategy
+        defaults.set(strategy.rawValue, forKey: AppSettingKey.fileNamingStrategy)
+        lastStatusMessage = "Filename mode updated"
+    }
+
+    func setFilenameFormat(_ format: String) {
+        filenameFormat = format
+        defaults.set(format, forKey: AppSettingKey.filenameFormat)
+        lastStatusMessage = "Filename format updated"
+    }
+
     func chooseSaveDirectory() {
         let panel = NSOpenPanel()
         panel.canChooseFiles = false
@@ -155,10 +174,26 @@ final class AppState: ObservableObject {
     private func save(_ content: ClipboardContent) {
         let directory = saveDirectoryURL
         let options = SaveOptions(saveText: saveText, saveImages: saveImages, saveFiles: saveFiles)
+        let naming = FileNamingOptions(strategy: fileNamingStrategy, customFormat: filenameFormat)
+
+        guard options.allows(content) else {
+            lastStatusMessage = "Skipped disabled \(content.filenamePrefix) content"
+            return
+        }
+
+        if naming.strategy == .askEveryTime {
+            promptForFilenameAndSave(content, directory: directory, options: options)
+            return
+        }
 
         saveQueue.async { [weak self] in
             do {
-                let outcome = try ContentSaver().save(content, to: directory, options: options)
+                let outcome = try ContentSaver().save(
+                    content,
+                    to: directory,
+                    options: options,
+                    naming: naming
+                )
 
                 Task { @MainActor in
                     self?.handleSaveOutcome(outcome)
@@ -166,6 +201,51 @@ final class AppState: ObservableObject {
             } catch {
                 Task { @MainActor in
                     self?.lastStatusMessage = "Save failed: \(error.localizedDescription)"
+                }
+            }
+        }
+    }
+
+    private func promptForFilenameAndSave(
+        _ content: ClipboardContent,
+        directory: URL,
+        options: SaveOptions
+    ) {
+        guard !isFilenamePromptActive else {
+            lastStatusMessage = "Skipped while filename prompt is open"
+            return
+        }
+
+        isFilenamePromptActive = true
+        let defaultFilename = ContentSaver().makeFilename(for: content)
+        let result = FilenamePrompt.show(defaultFilename: defaultFilename)
+        isFilenamePromptActive = false
+
+        switch result {
+        case .skip:
+            lastStatusMessage = "Skipped by user"
+
+        case let .save(filename, stopAsking):
+            if stopAsking {
+                setFileNamingStrategy(.automatic)
+            }
+
+            saveQueue.async { [weak self] in
+                do {
+                    let outcome = try ContentSaver().save(
+                        content,
+                        to: directory,
+                        options: options,
+                        explicitFilename: filename
+                    )
+
+                    Task { @MainActor in
+                        self?.handleSaveOutcome(outcome)
+                    }
+                } catch {
+                    Task { @MainActor in
+                        self?.lastStatusMessage = "Save failed: \(error.localizedDescription)"
+                    }
                 }
             }
         }

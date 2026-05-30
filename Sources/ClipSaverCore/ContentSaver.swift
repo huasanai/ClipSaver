@@ -50,7 +50,9 @@ public final class ContentSaver {
     public func save(
         _ content: ClipboardContent,
         to directory: URL,
-        options: SaveOptions = SaveOptions()
+        options: SaveOptions = SaveOptions(),
+        naming: FileNamingOptions = FileNamingOptions(),
+        explicitFilename: String? = nil
     ) throws -> SaveOutcome {
         guard options.allows(content) else {
             throw ContentSaverError.disabledContentType
@@ -78,7 +80,16 @@ public final class ContentSaver {
         }
 
         try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
-        let destination = makeDestinationURL(for: content, in: directory)
+        let destination: URL
+
+        if let explicitFilename {
+            destination = directory.appendingPathComponent(
+                Self.normalizedFilename(explicitFilename, defaultExtension: content.fileExtension),
+                isDirectory: false
+            )
+        } else {
+            destination = makeDestinationURL(for: content, in: directory, naming: naming)
+        }
 
         guard !fileManager.fileExists(atPath: destination.path) else {
             return .skippedExisting(destination)
@@ -99,14 +110,79 @@ public final class ContentSaver {
         return .saved(destination)
     }
 
-    public func makeDestinationURL(for content: ClipboardContent, in directory: URL) -> URL {
-        let filename = "\(content.filenamePrefix)_\(timestampProvider.timestamp()).\(content.fileExtension)"
+    public func makeDestinationURL(
+        for content: ClipboardContent,
+        in directory: URL,
+        naming: FileNamingOptions = FileNamingOptions()
+    ) -> URL {
+        let filename = makeFilename(for: content, naming: naming)
         return directory.appendingPathComponent(filename, isDirectory: false)
+    }
+
+    public func makeFilename(
+        for content: ClipboardContent,
+        naming: FileNamingOptions = FileNamingOptions()
+    ) -> String {
+        let timestamp = timestampProvider.timestamp()
+
+        switch naming.strategy {
+        case .automatic, .askEveryTime:
+            return "\(content.filenamePrefix)_\(timestamp).\(content.fileExtension)"
+
+        case .customFormat:
+            let baseName = Self.renderFormat(
+                naming.customFormat,
+                content: content,
+                timestamp: timestamp
+            )
+            return Self.normalizedFilename(baseName, defaultExtension: content.fileExtension)
+        }
     }
 
     public static func markdownForFileURLs(_ urls: [URL]) -> String {
         urls
             .map { "- \($0.path)" }
             .joined(separator: "\n")
+    }
+
+    public static func renderFormat(
+        _ format: String,
+        content: ClipboardContent,
+        timestamp: String
+    ) -> String {
+        let trimmedFormat = format.trimmingCharacters(in: .whitespacesAndNewlines)
+        let template = trimmedFormat.isEmpty ? "{type}_{timestamp}" : trimmedFormat
+        let parts = timestamp.split(separator: "-").map(String.init)
+        let date = parts.first ?? timestamp
+        let time = parts.dropFirst().first ?? timestamp
+
+        return template
+            .replacingOccurrences(of: "{type}", with: content.filenamePrefix)
+            .replacingOccurrences(of: "{timestamp}", with: timestamp)
+            .replacingOccurrences(of: "{date}", with: date)
+            .replacingOccurrences(of: "{time}", with: time)
+            .replacingOccurrences(of: "{uuid}", with: UUID().uuidString)
+    }
+
+    public static func normalizedFilename(
+        _ filename: String,
+        defaultExtension: String
+    ) -> String {
+        let invalidCharacters = CharacterSet(charactersIn: "/:\\\n\r\t")
+        let components = filename
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .components(separatedBy: invalidCharacters)
+        let sanitized = components
+            .filter { !$0.isEmpty }
+            .joined(separator: "-")
+            .trimmingCharacters(in: CharacterSet(charactersIn: ". "))
+
+        let fallback = sanitized.isEmpty ? "clip" : sanitized
+
+        if fallback.lowercased().hasSuffix(".\(defaultExtension.lowercased())") {
+            return fallback
+        }
+
+        return "\(fallback).\(defaultExtension)"
     }
 }

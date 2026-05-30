@@ -15,6 +15,7 @@ final class SettingsWindowController {
         self.window = window
 
         window.makeKeyAndOrderFront(nil)
+        window.orderFrontRegardless()
         NSApp.activate(ignoringOtherApps: true)
     }
 
@@ -24,8 +25,11 @@ final class SettingsWindowController {
 
         let window = NSWindow(contentViewController: NSHostingController(rootView: rootView))
         window.title = "ClipSaver 设置"
-        window.styleMask = [.titled, .closable, .miniaturizable]
+        window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
         window.isReleasedWhenClosed = false
+        window.collectionBehavior = [.moveToActiveSpace]
+        window.setContentSize(NSSize(width: 620, height: 680))
+        window.minSize = NSSize(width: 560, height: 560)
         window.center()
         return window
     }

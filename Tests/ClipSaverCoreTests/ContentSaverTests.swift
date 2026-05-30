@@ -83,4 +83,29 @@ final class ContentSaverTests: XCTestCase {
 
         XCTAssertEqual(outcome, .skippedEmptyContent)
     }
+
+    func testCustomFormatFilenameUsesTokensAndAppendsExtension() throws {
+        let saver = ContentSaver(timestampProvider: FixedTimestampProvider("20260531-010203-004"))
+
+        let filename = saver.makeFilename(
+            for: .text("hello"),
+            naming: FileNamingOptions(strategy: .customFormat, customFormat: "clip-{type}-{date}-{time}")
+        )
+
+        XCTAssertEqual(filename, "clip-text-20260531-010203.md")
+    }
+
+    func testExplicitFilenameIsSanitizedAndUsesDefaultExtension() throws {
+        let saver = ContentSaver(timestampProvider: FixedTimestampProvider("20260531-010203-004"))
+
+        let outcome = try saver.save(
+            .text("manual"),
+            to: temporaryDirectory,
+            explicitFilename: "manual/name"
+        )
+
+        let expectedURL = temporaryDirectory.appendingPathComponent("manual-name.md")
+        XCTAssertEqual(outcome, .saved(expectedURL))
+        XCTAssertEqual(try String(contentsOf: expectedURL, encoding: .utf8), "manual")
+    }
 }
