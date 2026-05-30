@@ -24,6 +24,8 @@ swift run ClipSaverApp
 open dist/ClipSaver.app
 ```
 
+Opening the app manually shows the settings window. ClipSaver also stays in the menu bar with a visible `ClipSaver` title.
+
 ## Behavior
 
 - The menu bar item toggles monitoring, opens the save folder, opens settings, and quits the app.
@@ -34,6 +36,7 @@ open dist/ClipSaver.app
 - The default save directory is `~/Documents/ClipSaver`.
 - The default global shortcut is `Command + Shift + S` and can be changed in settings.
 - Launch at login is available when running from the built `.app` bundle.
+- Launch-at-login starts in background mode and does not open the settings window.
 
 ## Distribution
 

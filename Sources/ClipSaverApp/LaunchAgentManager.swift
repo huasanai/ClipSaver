@@ -51,7 +51,7 @@ final class LaunchAgentManager {
 
         let plist: [String: Any] = [
             "Label": label,
-            "ProgramArguments": [executableURL.path],
+            "ProgramArguments": [executableURL.path, "--background"],
             "RunAtLoad": true,
             "KeepAlive": false,
             "WorkingDirectory": appBundleURL.deletingLastPathComponent().path

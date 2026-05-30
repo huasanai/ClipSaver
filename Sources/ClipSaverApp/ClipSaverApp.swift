@@ -1,28 +1,28 @@
-import SwiftUI
+import AppKit
 
-@main
-struct ClipSaverApp: App {
-    @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
-    @StateObject private var appState = AppState()
-
-    var body: some Scene {
-        MenuBarExtra {
-            MenuBarView()
-                .environmentObject(appState)
-        } label: {
-            Image(systemName: appState.statusSymbolName)
-        }
-
-        Window("ClipSaver 设置", id: "settings") {
-            SettingsView()
-                .environmentObject(appState)
-        }
-        .windowResizability(.contentSize)
-    }
-}
-
+@MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    private let appState = AppState()
+    private var settingsWindowController: SettingsWindowController?
+    private var statusItemController: StatusItemController?
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
+
+        let settingsWindowController = SettingsWindowController(appState: appState)
+        self.settingsWindowController = settingsWindowController
+        statusItemController = StatusItemController(
+            appState: appState,
+            settingsWindowController: settingsWindowController
+        )
+
+        if !CommandLine.arguments.contains("--background") {
+            settingsWindowController.show()
+        }
+    }
+
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        settingsWindowController?.show()
+        return true
     }
 }
