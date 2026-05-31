@@ -4,6 +4,7 @@ import SwiftUI
 
 struct SettingsView: View {
     @EnvironmentObject private var appState: AppState
+    let chooseSaveDirectory: () -> Void
 
     var body: some View {
         ScrollView {
@@ -57,7 +58,7 @@ struct SettingsView: View {
                             Spacer()
 
                             Button("选择文件夹") {
-                                appState.chooseSaveDirectory()
+                                chooseSaveDirectory()
                             }
                         }
 

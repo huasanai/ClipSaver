@@ -1,6 +1,7 @@
 import AppKit
 import ClipSaverCore
 import Foundation
+import os
 
 @MainActor
 final class AppState: ObservableObject {
@@ -15,6 +16,7 @@ final class AppState: ObservableObject {
     @Published private(set) var lastStatusMessage = "Ready"
 
     private let defaults: UserDefaults
+    private let logger = Logger(subsystem: "dev.huasan.clipsaver", category: "AppState")
     private let saveQueue = DispatchQueue(label: "dev.huasan.clipsaver.save", qos: .utility)
     private var monitor: ClipboardMonitor?
     private var shortcutController: GlobalShortcutController?
@@ -28,7 +30,10 @@ final class AppState: ObservableObject {
         saveText = defaults.bool(forKey: AppSettingKey.saveText)
         saveImages = defaults.bool(forKey: AppSettingKey.saveImages)
         saveFiles = defaults.bool(forKey: AppSettingKey.saveFiles)
-        saveDirectoryPath = defaults.string(forKey: AppSettingKey.saveDirectoryPath) ?? AppDefaults.saveDirectoryPath
+        let storedSaveDirectoryPath = defaults.string(forKey: AppSettingKey.saveDirectoryPath) ?? AppDefaults.saveDirectoryPath
+        let normalizedSaveDirectoryPath = URL(fileURLWithPath: storedSaveDirectoryPath, isDirectory: true).standardizedFileURL.path
+        saveDirectoryPath = normalizedSaveDirectoryPath
+        defaults.set(normalizedSaveDirectoryPath, forKey: AppSettingKey.saveDirectoryPath)
         launchAtLogin = LaunchAgentManager.shared.isEnabled
         fileNamingStrategy = FileNamingStrategy(
             rawValue: defaults.string(forKey: AppSettingKey.fileNamingStrategy) ?? ""
@@ -106,13 +111,15 @@ final class AppState: ObservableObject {
     }
 
     func setSaveDirectoryPath(_ path: String) {
-        guard !path.isEmpty else {
+        let normalizedPath = URL(fileURLWithPath: path, isDirectory: true).standardizedFileURL.path
+        guard !normalizedPath.isEmpty else {
             return
         }
 
-        saveDirectoryPath = path
-        defaults.set(path, forKey: AppSettingKey.saveDirectoryPath)
+        saveDirectoryPath = normalizedPath
+        defaults.set(normalizedPath, forKey: AppSettingKey.saveDirectoryPath)
         lastStatusMessage = "Save folder updated"
+        logger.info("Save folder updated: \(normalizedPath, privacy: .public)")
     }
 
     func setFileNamingStrategy(_ strategy: FileNamingStrategy) {
@@ -125,19 +132,6 @@ final class AppState: ObservableObject {
         filenameFormat = format
         defaults.set(format, forKey: AppSettingKey.filenameFormat)
         lastStatusMessage = "Filename format updated"
-    }
-
-    func chooseSaveDirectory() {
-        let panel = NSOpenPanel()
-        panel.canChooseFiles = false
-        panel.canChooseDirectories = true
-        panel.allowsMultipleSelection = false
-        panel.canCreateDirectories = true
-        panel.directoryURL = saveDirectoryURL
-
-        if panel.runModal() == .OK, let url = panel.url {
-            setSaveDirectoryPath(url.path)
-        }
     }
 
     func openSaveDirectory() {

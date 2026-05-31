@@ -7,7 +7,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItemController: StatusItemController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        NSApp.setActivationPolicy(.accessory)
+        let launchedInBackground = CommandLine.arguments.contains("--background")
+        if launchedInBackground {
+            NSApp.setActivationPolicy(.accessory)
+        }
 
         let settingsWindowController = SettingsWindowController(appState: appState)
         self.settingsWindowController = settingsWindowController
@@ -16,7 +19,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             settingsWindowController: settingsWindowController
         )
 
-        if !CommandLine.arguments.contains("--background") {
+        if !launchedInBackground {
             settingsWindowController.show()
         }
     }
